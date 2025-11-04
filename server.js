@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const Database = require('better-sqlite3');
-const path = require('path');
+const { getAllCompanies, getDrugs } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -9,26 +8,6 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-// Initialize database
-const dbPath = path.join(__dirname, 'drugs.db');
-let db;
-
-try {
-  db = new Database(dbPath);
-  // Check if table exists
-  const tableExists = db.prepare(`
-    SELECT name FROM sqlite_master 
-    WHERE type='table' AND name='drugs'
-  `).get();
-  
-  if (!tableExists) {
-    console.warn('Warning: drugs table does not exist. Please run: npm run seed');
-  }
-} catch (error) {
-  console.error('Error initializing database:', error.message);
-  process.exit(1);
-}
 
 // Table configuration endpoint
 app.get('/api/table-config', (req, res) => {
@@ -46,38 +25,23 @@ app.get('/api/table-config', (req, res) => {
 
 // Get all distinct companies
 app.get('/api/companies', (req, res) => {
-  const companies = db.prepare('SELECT DISTINCT company FROM drugs ORDER BY company').all();
-  res.json(companies.map(row => row.company));
+  try {
+    const companies = getAllCompanies();
+    res.json(companies);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch companies' });
+  }
 });
 
 // Get drug data endpoint
 app.get('/api/drugs', (req, res) => {
-  const company = req.query.company;
-  
-  let query = `
-    SELECT 
-      id,
-      code,
-      genericName,
-      brandName,
-      company,
-      launchDate
-    FROM drugs
-  `;
-  
-  const params = [];
-  
-  if (company && company !== 'all') {
-    query += ' WHERE company = ?';
-    params.push(company);
+  try {
+    const company = req.query.company;
+    const drugs = getDrugs(company);
+    res.json(drugs);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch drugs' });
   }
-  
-  query += ' ORDER BY launchDate DESC';
-  
-  const stmt = db.prepare(query);
-  const drugs = stmt.all(...params);
-  
-  res.json(drugs);
 });
 
 // Health check
