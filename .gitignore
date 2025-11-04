@@ -1,0 +1,4 @@
+node_modules/
+drugs.db
+.env
+*.log
